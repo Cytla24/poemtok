@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-PoemTok Styled Version
+PoemTok Simple Version
 ----------------------
-Creates TikTok-style videos from PDF books with stylized text overlay
-that matches the minimalist mockup design.
+Creates TikTok-style videos from PDF books with a minimalist design
+that preserves the original text formatting from the PDF.
 """
 
 import os
@@ -11,18 +11,16 @@ import sys
 import argparse
 import tempfile
 import shutil
-import json
 import subprocess
 from pathlib import Path
 from tqdm import tqdm
 import PyPDF2
 
-class PoemTokStyled:
+class PoemTokSimple:
     def __init__(self, output_dir="output", duration=5, font_size=32, 
-                 text_color="white", box_color="black@0.8", box_width=0.5, box_height=0.4,
-                 padding=20):
+                 text_color="white", box_color="black@0.7"):
         """
-        Initialize the PoemTok styled converter.
+        Initialize the PoemTok simple converter.
         
         Args:
             output_dir: Directory to save the generated videos
@@ -30,17 +28,12 @@ class PoemTokStyled:
             font_size: Font size for the text
             text_color: Color of the text
             box_color: Color of the background box (with alpha)
-            box_width: Width of the box as a fraction of video width
-            box_height: Height of the box as a fraction of video height
         """
         self.output_dir = output_dir
         self.duration = duration
         self.font_size = font_size
         self.text_color = text_color
         self.box_color = box_color
-        self.box_width = box_width
-        self.box_height = box_height
-        self.padding = padding
         self.temp_dir = tempfile.mkdtemp()
         
         # Create output directory if it doesn't exist
@@ -88,34 +81,15 @@ class PoemTokStyled:
                 # Clean up the text
                 text = text.strip()
                 
-                # Format the text for better display
-                formatted_text = self._format_text(text)
-                
                 # Add to our list
-                page_texts.append(formatted_text)
+                page_texts.append(text)
         
         print(f"Extracted text from {len(page_texts)} pages")
         return page_texts
     
-    def _format_text(self, text):
+    def create_text_file(self, text, output_path):
         """
-        Preserve the exact formatting from the PDF.
-        
-        Args:
-            text: Text extracted from PDF
-            
-        Returns:
-            Formatted text with preserved line breaks
-        """
-        # Replace normal line breaks with escaped line breaks for ffmpeg
-        formatted_text = text.replace('\n', '\\n')
-        
-        # Return the text with preserved formatting
-        return formatted_text
-    
-    def create_text_overlay(self, text, output_path):
-        """
-        Create a text file with the formatted text for ffmpeg.
+        Create a text file for ffmpeg.
         
         Args:
             text: Text to display
@@ -124,14 +98,17 @@ class PoemTokStyled:
         Returns:
             Path to the created text file
         """
+        # Replace newlines with escaped newlines for ffmpeg
+        formatted_text = text.replace('\n', '\\n')
+        
         with open(output_path, 'w') as f:
-            f.write(text)
+            f.write(formatted_text)
         
         return output_path
     
-    def create_video_with_styled_text(self, video_path, text, output_path):
+    def create_video_with_text(self, video_path, text, output_path):
         """
-        Create a video with styled text overlay using ffmpeg.
+        Create a video with text overlay using ffmpeg.
         
         Args:
             video_path: Path to the background video
@@ -143,44 +120,17 @@ class PoemTokStyled:
         """
         # Create a text file with the content
         text_file = os.path.join(self.temp_dir, "text.txt")
-        self.create_text_overlay(text, text_file)
+        self.create_text_file(text, text_file)
         
-        # Prepare ffmpeg command with complex filter for styled text
-        # First, we'll create a drawtext filter that preserves the exact formatting
-        
-        # Calculate the approximate width and height needed for the text
-        # We'll use ffmpeg's drawtext filter to draw the text directly on the video
-        # with a dynamically sized background box that only covers the text area
-        
-        filter_complex = [
-            # Start with the background video
-            f"[0:v]trim=0:{self.duration},setpts=PTS-STARTPTS[bg];",
-            
-            # Create a semi-transparent box for the text background
-            # This box will be sized dynamically based on the text content
-            f"color=c={self.box_color}:s=1080x1920:d={self.duration}[box];",
-            
-            # Add the text to the box with precise positioning
-            f"[box]drawtext=fontsize={self.font_size}:fontcolor={self.text_color}:textfile='{text_file}':"
-            f"x=(w-text_w)/2:y=(h-text_h)/2:line_spacing=12[text_with_box];",
-            
-            # Detect the text area and add padding
-            f"[text_with_box]cropdetect=limit=0:round=1:reset=0[detected];",
-            
-            # Create a smaller box that only covers the text area plus padding
-            f"[text_with_box]crop=iw*{self.box_width}:ih*{self.box_height}:x=(iw-ow)/2:y=(ih-oh)/2[cropped_box];",
-            
-            # Overlay the cropped box on the background video
-            f"[bg][cropped_box]overlay=(W-w)/2:(H-h)/2:shortest=1[out]"
-        ]
-        
-        filter_str = "".join(filter_complex)
-        
+        # Simple ffmpeg command that adds a small box with text
         command = [
             "ffmpeg", "-y",
             "-i", video_path,
-            "-filter_complex", filter_str,
-            "-map", "[out]",
+            "-vf", (
+                f"drawbox=x=(iw-iw*0.7)/2:y=(ih-ih*0.4)/2:w=iw*0.7:h=ih*0.4:color={self.box_color}:t=fill,"
+                f"drawtext=fontsize={self.font_size}:fontcolor={self.text_color}:textfile='{text_file}':"
+                f"x=(w-text_w)/2:y=(h-text_h)/2:line_spacing=10"
+            ),
             "-c:v", "libx264",
             "-preset", "fast",
             "-t", str(self.duration),
@@ -221,11 +171,11 @@ class PoemTokStyled:
             pdf_name = os.path.splitext(os.path.basename(pdf_path))[0]
             output_path = os.path.join(
                 self.output_dir,
-                f"{pdf_name}_page_{i + start_page}_styled.mp4"
+                f"{pdf_name}_page_{i + start_page}_simple.mp4"
             )
             
             # Create the video
-            result = self.create_video_with_styled_text(
+            result = self.create_video_with_text(
                 video_path,
                 text,
                 output_path
@@ -238,7 +188,7 @@ class PoemTokStyled:
         return output_videos
 
 def main():
-    parser = argparse.ArgumentParser(description="Convert PDF books to TikTok videos with styled text")
+    parser = argparse.ArgumentParser(description="Convert PDF books to TikTok videos with simple styling")
     parser.add_argument("pdf_path", help="Path to the PDF file")
     parser.add_argument("video_path", help="Path to the background video")
     parser.add_argument("--output", "-o", default="output", help="Output directory")
@@ -247,23 +197,17 @@ def main():
     parser.add_argument("--duration", "-d", type=int, default=5, help="Duration of each video in seconds")
     parser.add_argument("--font-size", type=int, default=32, help="Font size for text")
     parser.add_argument("--text-color", default="white", help="Text color")
-    parser.add_argument("--box-color", default="black@0.8", help="Background box color (with alpha)")
-    parser.add_argument("--box-width", type=float, default=0.5, help="Width of box as fraction of video width")
-    parser.add_argument("--box-height", type=float, default=0.4, help="Height of box as fraction of video height")
-    parser.add_argument("--padding", type=int, default=20, help="Padding around text in pixels")
+    parser.add_argument("--box-color", default="black@0.7", help="Background box color (with alpha)")
     
     args = parser.parse_args()
     
     # Create PoemTok instance
-    poemtok = PoemTokStyled(
+    poemtok = PoemTokSimple(
         output_dir=args.output,
         duration=args.duration,
         font_size=args.font_size,
         text_color=args.text_color,
-        box_color=args.box_color,
-        box_width=args.box_width,
-        box_height=args.box_height,
-        padding=args.padding
+        box_color=args.box_color
     )
     
     # Process the PDF
