@@ -1,14 +1,15 @@
 # PoemTok
 
-PoemTok is a tool that converts PDF books into TikTok-style videos, with each page of the book becoming a separate video. The text formatting from the PDF is preserved and overlaid on a background video of your choice.
+PoemTok is a tool that converts PDF books into TikTok-style videos. Each page of the PDF becomes a separate video with the text displayed as white text on a semi-transparent black background, overlaid on a background video.
 
 ## Features
 
-- Convert each PDF page to a separate TikTok video
-- Preserve text formatting from the original PDF
-- Overlay text on a background video with a semi-transparent backdrop
-- Customize video duration, resolution, and page range
-- Batch process multiple pages at once
+- **Automated PDF Processing**: Extract content from PDF pages while excluding headers and footers
+- **High-Quality Screenshots**: Create clean screenshots of each page
+- **Text Styling**: Convert text to white on semi-transparent black background
+- **Video Creation**: Overlay processed text on background videos
+- **Batch Processing**: Process multiple pages in one command
+- **Customizable Appearance**: Adjust text size, background opacity, and more
 
 ## Installation
 
@@ -17,6 +18,7 @@ PoemTok is a tool that converts PDF books into TikTok-style videos, with each pa
 
 ```bash
 pip install -r requirements.txt
+pip install PyMuPDF  # For PDF screenshot functionality
 ```
 
 3. Make sure you have ffmpeg installed on your system:
@@ -26,60 +28,71 @@ pip install -r requirements.txt
 
 ## Usage
 
-Basic usage:
+### Process a PDF and Create Videos
 
 ```bash
-python poemtok.py path/to/book.pdf path/to/background.mp4
+# Process a range of pages (e.g., pages 10-20)
+python pdf_to_screenshots.py book.pdf background_video.mp4 --start 10 --end 20
+
+# Process the entire book
+python pdf_to_screenshots.py book.pdf background_video.mp4
+
+# Adjust margins to exclude more of the header/footer
+python pdf_to_screenshots.py book.pdf background_video.mp4 --margin-top 0.15 --margin-bottom 0.15
+
+# Create larger or smaller text
+python pdf_to_screenshots.py book.pdf background_video.mp4 --scale 1.0  # Larger text
+python pdf_to_screenshots.py book.pdf background_video.mp4 --scale 0.8  # Smaller text
 ```
 
-Advanced options:
+### Create a Video from a Single Screenshot
 
 ```bash
-python poemtok.py path/to/book.pdf path/to/background.mp4 \
-    --output output_directory \
-    --start 1 \
-    --end 10 \
-    --duration 15 \
-    --resolution 1080x1920
+python poemtok_final.py screenshot.png background_video.mp4 --output output/video.mp4 --scale 0.9
 ```
 
-### Arguments
+## Options
 
-- `pdf_path`: Path to the PDF file (required)
-- `video_path`: Path to the background video (required)
-- `--output` or `-o`: Output directory for the generated videos (default: "output")
-- `--start` or `-s`: First page to process, 1-indexed (default: 1)
-- `--end` or `-e`: Last page to process, inclusive (default: all pages)
-- `--duration` or `-d`: Duration of each video in seconds (default: 15)
-- `--resolution` or `-r`: Output video resolution as width x height (default: 1080x1920)
+### PDF to Screenshots Options
 
-## Example
+- `--screenshots-dir`: Directory to save screenshots (default: "screenshots")
+- `--output-dir`, `-o`: Directory to save videos (default: "output")
+- `--start`, `-s`: First page to process (1-indexed)
+- `--end`, `-e`: Last page to process (inclusive, 1-indexed)
+- `--margin-top`: Top margin to exclude (fraction of page height, default: 0.1)
+- `--margin-bottom`: Bottom margin to exclude (fraction of page height, default: 0.1)
+- `--margin-left`: Left margin to exclude (fraction of page width, default: 0.1)
+- `--margin-right`: Right margin to exclude (fraction of page width, default: 0.1)
+- `--dpi`: DPI for the rendered images (default: 300)
+- `--duration`, `-d`: Duration of each video in seconds (default: 5)
+- `--scale`: Scale factor for the text size (0-1, default: 0.9)
+- `--bg-opacity`: Opacity of the background (0-1, default: 0.8)
+- `--screenshots-only`: Only create screenshots, not videos
 
-Convert the first 5 pages of a poetry book with a 10-second duration:
+### Single Video Options
 
-```bash
-python poemtok.py poetry_collection.pdf ambient_background.mp4 --start 1 --end 5 --duration 10
-```
+- `--output`, `-o`: Output video path (default: "output/final_video.mp4")
+- `--duration`, `-d`: Duration of the video in seconds (default: 5)
+- `--scale`, `-s`: Scale factor for the text size (0-1, default: 0.7)
+- `--bg-opacity`, `-a`: Opacity of the background (0-1, default: 0.8)
+- `--contrast`, `-c`: Contrast enhancement factor (default: 2.0)
 
 ## Tips for Best Results
 
 - Use a high-quality PDF with clear text
-- Choose a background video that's not too distracting
-- For poetry or short text, 10-15 seconds is usually sufficient
+- Adjust the margins to exclude headers and footers
+- For poetry or short text, 5-10 seconds duration is usually sufficient
 - For pages with more text, consider increasing the duration
-- The default resolution (1080x1920) is optimized for TikTok's portrait mode
+- Adjust the scale parameter to make text larger or smaller
+- The default styling (white text on semi-transparent black) works well for most videos
 
 ## Requirements
 
-- Python 3.7+
+- Python 3.8+
+- PyMuPDF (for PDF processing)
+- Pillow (for image processing)
+- ffmpeg (for video creation)
 - PyPDF2
-- Pillow
-- moviepy
-- pdf2image
-- numpy
-- opencv-python
-- pytesseract
-- fpdf
 - tqdm
 
 ## License
