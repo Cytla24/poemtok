@@ -10,7 +10,6 @@ import os
 import sys
 from PIL import Image, ImageDraw, ImageFont
 import numpy as np
-import cv2
 
 class TextStyler:
     def __init__(self, resolution=(1080, 1920)):
@@ -164,7 +163,8 @@ class TextStyler:
     def extract_text_from_pdf_page(self, page_image):
         """
         Attempt to extract text from a PDF page image.
-        Requires pytesseract to be installed.
+        Note: This is a placeholder method that returns a message.
+        For actual text extraction, install pytesseract.
         
         Args:
             page_image: PIL Image of a PDF page
@@ -172,11 +172,7 @@ class TextStyler:
         Returns:
             Extracted text as string
         """
-        try:
-            import pytesseract
-            return pytesseract.image_to_string(page_image)
-        except:
-            return "Text extraction failed. Please install pytesseract."
+        return "Text extraction requires pytesseract to be installed."
     
     def apply_overlay_to_image(self, background_image, text_overlay):
         """

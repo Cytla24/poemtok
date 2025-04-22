@@ -19,15 +19,26 @@ from pathlib import Path
 import shutil
 from tqdm import tqdm
 import numpy as np
-import cv2
-from pdf2image import convert_from_path
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageFilter
+
+# Handle Pillow version compatibility
+if not hasattr(Image, 'ANTIALIAS'):
+    # In newer versions of Pillow, ANTIALIAS was renamed to LANCZOS
+    Image.ANTIALIAS = Image.LANCZOS
 from moviepy.editor import VideoFileClip, ImageClip, CompositeVideoClip, TextClip, ColorClip
 import PyPDF2
-import pytesseract
+import io
 
 # Import the text styler
 from text_styler import TextStyler
+
+# Try to import pytesseract, but don't fail if it's not available
+try:
+    import pytesseract
+    HAS_PYTESSERACT = True
+except ImportError:
+    HAS_PYTESSERACT = False
+    print("Warning: pytesseract not installed. OCR functionality will be disabled.")
 
 class PoemTok:
     def __init__(self, output_dir="output", resolution=(1080, 1920), duration=15, style=None):
@@ -61,7 +72,7 @@ class PoemTok:
     
     def extract_pdf_pages(self, pdf_path):
         """
-        Extract pages from a PDF file.
+        Extract pages from a PDF file using PyPDF2 and render to images.
         
         Args:
             pdf_path: Path to the PDF file
@@ -71,19 +82,35 @@ class PoemTok:
         """
         print(f"Extracting pages from {pdf_path}...")
         
-        # Get total number of pages
+        # Open the PDF file
         with open(pdf_path, 'rb') as f:
             pdf_reader = PyPDF2.PdfReader(f)
             total_pages = len(pdf_reader.pages)
-        
-        # Convert PDF pages to images
-        pages = convert_from_path(
-            pdf_path,
-            dpi=300,
-            output_folder=self.temp_dir,
-            fmt="png",
-            transparent=True
-        )
+            
+            print(f"PDF has {total_pages} pages")
+            pages = []
+            
+            # Process each page
+            for i in tqdm(range(total_pages)):
+                # Get the page text
+                page = pdf_reader.pages[i]
+                text = page.extract_text()
+                
+                # Create a blank image with RGBA mode for transparency support
+                img = Image.new('RGBA', (1000, 1400), color=(255, 255, 255, 255))
+                draw = ImageDraw.Draw(img)
+                
+                # Use a default font
+                try:
+                    font = ImageFont.truetype("Arial", 20)
+                except:
+                    font = ImageFont.load_default()
+                
+                # Draw the text on the image
+                draw.text((50, 50), text, fill=(0, 0, 0), font=font)
+                
+                # Add the image to our list
+                pages.append(img)
         
         print(f"Extracted {len(pages)} pages from PDF")
         return pages
@@ -131,18 +158,21 @@ class PoemTok:
         Returns:
             PIL Image with transparent background and text
         """
-        # Method 1: Extract text using OCR and create styled overlay
-        try:
-            # Extract text from the page image
-            text = pytesseract.image_to_string(page_image)
-            
-            # If text extraction succeeded, create a styled overlay
-            if text and len(text.strip()) > 0:
-                # Use the text styler to create a minimalist overlay
-                overlay = self.text_styler.create_minimalist_overlay(text, self.style)
-                return overlay
-        except Exception as e:
-            print(f"OCR text extraction failed: {e}. Falling back to image-based overlay.")
+        # Method 1: Extract text using OCR and create styled overlay (if pytesseract is available)
+        if HAS_PYTESSERACT:
+            try:
+                # Extract text from the page image
+                text = pytesseract.image_to_string(page_image)
+                
+                # If text extraction succeeded, create a styled overlay
+                if text and len(text.strip()) > 0:
+                    # Use the text styler to create a minimalist overlay
+                    overlay = self.text_styler.create_minimalist_overlay(text, self.style)
+                    return overlay
+            except Exception as e:
+                print(f"OCR text extraction failed: {e}. Falling back to image-based overlay.")
+        else:
+            print("OCR not available. Using image-based overlay.")
         
         # Method 2 (Fallback): Use the page image directly
         # Create a transparent image
@@ -157,6 +187,11 @@ class PoemTok:
         )
         
         new_size = (int(page_w * scale), int(page_h * scale))
+        
+        # Convert the page image to RGBA mode if it's not already
+        if page_image.mode != 'RGBA':
+            page_image = page_image.convert('RGBA')
+            
         resized_page = page_image.resize(new_size, Image.LANCZOS)
         
         # Calculate position to center the text
@@ -176,8 +211,8 @@ class PoemTok:
             fill=(0, 0, 0, 200)  # Darker background to match mockup
         )
         
-        # Paste the resized page onto the overlay
-        overlay.paste(resized_page, (pos_x, pos_y), resized_page)
+        # Paste the resized page onto the overlay without using a mask
+        overlay.paste(resized_page, (pos_x, pos_y))
         
         return overlay
     
